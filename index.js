@@ -2,8 +2,12 @@
 const speech = require("@google-cloud/speech").v1p1beta1;
 const language = require("@google-cloud/language");
 const fs = require("fs");
+const { Console } = require("console");
+
+const isDebugMode = false;
 
 async function main() {
+
   const projectId = "nlp-stt";
   const keyFilename =
     "/Users/hermanmak/Documents/Dev/nlp-stt-16634c694dd7.json";
@@ -44,7 +48,7 @@ async function main() {
   // 2) Process Speech response
   const [speechResponse] = await operation.promise();
   speechResponse.results.forEach((result) => {
-    console.log(`Transcription: ${result.alternatives[0].transcript}`);
+    debugLogger(`Transcription: ${result.alternatives[0].transcript}`);
 
     result.alternatives[0].words.forEach((wordInfo) => {
       // NOTE: If you have a time offset exceeding 2^32 seconds, use the
@@ -57,17 +61,17 @@ async function main() {
         `${wordInfo.endTime.seconds}` +
         "." +
         wordInfo.endTime.nanos / 100000000;
-      console.log(`Word: ${wordInfo.word}`);
-      console.log(`\t ${startSecs} secs - ${endSecs} secs`);
-      console.log(`Confidence: ` + wordInfo.confidence);
-      console.log(`Raw form ${wordInfo}`);
+      debugLogger(`Word: ${wordInfo.word}`);
+      debugLogger(`\t ${startSecs} secs - ${endSecs} secs`);
+      debugLogger(`Confidence: ` + wordInfo.confidence);
+      debugLogger(`Raw form ${wordInfo}`);
     });
   });
 
-  console.log("Speech Response: " + JSON.stringify(speechResponse, null, 4));
+  debugLogger("Speech Response: " + JSON.stringify(speechResponse, null, 4));
   var speechRawPayload = speechResponse.results[0].alternatives[0].transcript;
   var speechWordArray = speechResponse.results[0].alternatives[0].words;
-  console.log(`Word Array: ${JSON.stringify(speechWordArray, null, 4)}`);
+  debugLogger(`Word Array: ${JSON.stringify(speechWordArray, null, 4)}`);
 
   // 3) Trigger NLP
   const document = {
@@ -80,7 +84,7 @@ async function main() {
     languageRequest
   );
 
-  console.log(languageResponse);
+  debugLogger(languageResponse);
 
   // 5) Construct output and mergetemp payload
   const output = {};
@@ -114,24 +118,25 @@ async function main() {
     });
     mergeTemp.push(wordInfo.word);
   });
-  console.log(`Non merged output is ${JSON.stringify(output, null, 4)}`);
-  console.log( `MergeTemp is ${JSON.stringify(mergeTemp, null, 4)}`);
+  debugLogger(`Non merged output is ${JSON.stringify(output, null, 4)}`);
+  debugLogger(`MergeTemp is ${JSON.stringify(mergeTemp, null, 4)}`);
 
   // 6) Merge and replace
   languageResponse.entities.forEach((entity) => {
-    console.log(speechRawPayload);
+    debugLogger(speechRawPayload);
     var entityName = entity.name;
-    console.log("entity name " + entityName);
+    debugLogger("entity name " + entityName);
 
     var startingIndex = speechWordArray.indexOf(entityName).valueOf();
-    console.log("hhherman " + startingIndex);
+    debugLogger("hhherman " + startingIndex);
 
     // Exact matches like English words actually show up as a single word in STT API so we will // so a exact match at the detected index, if it happens then we will replace length with 1
-    console.log("herman " + speechWordArray[startingIndex]);
+    debugLogger("herman " + speechWordArray[startingIndex]);
 
-    var wordLength = speechWordArray[startingIndex].word == entityName ? 1 : entityName.length;
+    var wordLength =
+      speechWordArray[startingIndex].word == entityName ? 1 : entityName.length;
 
-    console.log(
+    debugLogger(
       `${entityName} present in text? ${speechRawPayload.includes(
         entityName
       )} beginning at ${speechRawPayload.indexOf(
@@ -139,6 +144,13 @@ async function main() {
       )} with itself being length ${wordLength}`
     );
   });
-  console.log(`Merged output is ${JSON.stringify(output, null, 4)}`);
+  debugLogger(`Merged output is ${JSON.stringify(output, null, 4)}`);
 }
+
+// This function only prints to console if debug mode is enabled
+function debugLogger(stringToPrint) {
+  if (isDebugMode) {
+    console.log(stringToPrint)};
+};
+
 main().catch(console.error);

@@ -1,4 +1,4 @@
-# Configure usage steps
+# Google Cloud AI Verint Adaptor
 
 # Setup
 1) Provide a service key for this script to call Google Cloud APIs.
