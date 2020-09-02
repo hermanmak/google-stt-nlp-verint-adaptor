@@ -5,11 +5,12 @@ const fs = require("fs");
 const { Console } = require("console");
 
 // Set to true for all logging output
-const isDebugMode = false;
+const isDebugMode = true;
 
 async function main() {
-  const projectId = "YOURPROJECTNAME";
-  const keyFilename = "YOURKEYLOCATION";
+  const projectId = "nlp-stt";
+  const keyFilename =
+    "/Users/hermanmak/Documents/Dev/nlp-stt-16634c694dd7.json";
   
     // Creates client(s)
   const speechClient = new speech.SpeechClient({ projectId, keyFilename });
@@ -80,7 +81,7 @@ async function main() {
     var start = getStartTimeFromCloudSTTWordInfo(wordInfo);
     var end = getEndTimeFromCloudSTTWordInfo(wordInfo);
 
-    var duration = end - start;
+    var duration = (end - start).toFixed(1);
     var speaker = wordInfo.speakerTag;
     var best = {
       word: wordInfo.word,
@@ -189,7 +190,7 @@ async function main() {
           chineseEntityFirstWordIndex + chineseEntityWordArray.length - 1
         ]
       );
-      var duration = endTime - startTime;
+      var duration = (endTime - startTime).toFixed(1);
       var speaker = 0;
 
       var combinedEntity = {
