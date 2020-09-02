@@ -2,9 +2,11 @@
 This adaptor is not official and is provided for anyone to use. No SLA is provided.
 
 # Setup
-1) Provide a service key for this script to call Google Cloud APIs.
-2) Input audio clip can be provided via local path or a Google Cloud Storage bucket ie gs://YOURFILELOCATION
-3) Run `node index.js`
+1) Generate a service account from the Google Cloud Console, it should provide you with a JSON key file.
+2) Place the JSON key file in any directory and replace the `PROJECTID` and `YOURKEYLOCATION` with your values.
+3) Input audio clip supported is FLAC.
+4) Provide a Google Cloud Storage Bucket location `gs://YOURFILELOCATION` or a local path.
+5) Run `node index.js`
 
-# Test
-1) enable debugging by setting isDebugMode=true
+# Optional
+1) Enable debugging mode for Console output logging by setting isDebugMode=true.

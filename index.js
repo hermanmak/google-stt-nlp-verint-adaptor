@@ -8,9 +8,8 @@ const { Console } = require("console");
 const isDebugMode = false;
 
 async function main() {
-  const projectId = "nlp-stt";
-  const keyFilename =
-    "/Users/hermanmak/Documents/Dev/nlp-stt-16634c694dd7.json";
+  const projectId = "YOURPROJECTNAME";
+  const keyFilename = "YOURKEYLOCATION";
   
     // Creates client(s)
   const speechClient = new speech.SpeechClient({ projectId, keyFilename });
