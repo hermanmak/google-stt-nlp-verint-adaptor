@@ -10,4 +10,4 @@ This adaptor is not official and is provided for anyone to use. No SLA is provid
 6) Run `node index.js`
 
 # Optional
-1) Enable debugging mode for Console output logging by setting isDebugMode=true.
+1) Enable debugging mode for Console output logging by setting `isDebugMode=true`.
