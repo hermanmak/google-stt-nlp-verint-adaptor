@@ -4,10 +4,9 @@ const language = require("@google-cloud/language");
 const fs = require("fs");
 const { Console } = require("console");
 
-const isDebugMode = false;
+const isDebugMode = true;
 
 async function main() {
-
   const projectId = "nlp-stt";
   const keyFilename =
     "/Users/hermanmak/Documents/Dev/nlp-stt-16634c694dd7.json";
@@ -47,31 +46,10 @@ async function main() {
 
   // 2) Process Speech response
   const [speechResponse] = await operation.promise();
-  speechResponse.results.forEach((result) => {
-    debugLogger(`Transcription: ${result.alternatives[0].transcript}`);
 
-    result.alternatives[0].words.forEach((wordInfo) => {
-      // NOTE: If you have a time offset exceeding 2^32 seconds, use the
-      // wordInfo.{x}Time.seconds.high to calculate seconds.
-      const startSecs =
-        `${wordInfo.startTime.seconds}` +
-        "." +
-        wordInfo.startTime.nanos / 100000000;
-      const endSecs =
-        `${wordInfo.endTime.seconds}` +
-        "." +
-        wordInfo.endTime.nanos / 100000000;
-      debugLogger(`Word: ${wordInfo.word}`);
-      debugLogger(`\t ${startSecs} secs - ${endSecs} secs`);
-      debugLogger(`Confidence: ` + wordInfo.confidence);
-      debugLogger(`Raw form ${wordInfo}`);
-    });
-  });
-
-  debugLogger("Speech Response: " + JSON.stringify(speechResponse, null, 4));
+  debugLogger(`JSON response from Cloud STT: ${JSON.stringify(speechResponse, null, 4)}`);
   var speechRawPayload = speechResponse.results[0].alternatives[0].transcript;
   var speechWordArray = speechResponse.results[0].alternatives[0].words;
-  debugLogger(`Word Array: ${JSON.stringify(speechWordArray, null, 4)}`);
 
   // 3) Trigger NLP
   const document = {
@@ -84,14 +62,14 @@ async function main() {
     languageRequest
   );
 
-  debugLogger(languageResponse);
+  debugLogger(`JSON response from Cloud NLP: ${JSON.stringify(languageResponse,null,4)}`);
 
   // 5) Construct output and mergetemp payload
   const output = {};
   var key = "terms"; // This output payload
   output[key] = []; // An empty array JSON
 
-  const mergeTemp = [];
+  const wordOnlyArray = [];
 
   speechWordArray.forEach((wordInfo) => {
     var start =
@@ -116,41 +94,123 @@ async function main() {
       best,
       alternatives,
     });
-    mergeTemp.push(wordInfo.word);
+    wordOnlyArray.push(wordInfo.word);
   });
   debugLogger(`Non merged output is ${JSON.stringify(output, null, 4)}`);
-  debugLogger(`MergeTemp is ${JSON.stringify(mergeTemp, null, 4)}`);
 
-  // 6) Merge and replace
+  /**
+   * 6) Merge step
+   * 6.1) Handle all single English entities first, single word English entities appear in Cloud STT as a single term. Ignore those.
+   * 6.2) Handle multi Engine entities, they contain spaces in the Cloud NLP output.
+   * 6.3) Handle chinese entities last.
+   */
+  // 6.2
   languageResponse.entities.forEach((entity) => {
-    debugLogger(speechRawPayload);
-    var entityName = entity.name;
-    debugLogger("entity name " + entityName);
+    if (entity.name.includes(" ")) {
+      var temp = entity.name.split(" ");
+      var firstIndex = wordOnlyArray.indexOf(temp[0]);
 
-    var startingIndex = speechWordArray.indexOf(entityName).valueOf();
-    debugLogger("hhherman " + startingIndex);
-
-    // Exact matches like English words actually show up as a single word in STT API so we will // so a exact match at the detected index, if it happens then we will replace length with 1
-    debugLogger("herman " + speechWordArray[startingIndex]);
-
-    var wordLength =
-      speechWordArray[startingIndex].word == entityName ? 1 : entityName.length;
-
-    debugLogger(
-      `${entityName} present in text? ${speechRawPayload.includes(
-        entityName
-      )} beginning at ${speechRawPayload.indexOf(
-        entityName
-      )} with itself being length ${wordLength}`
-    );
+      // Construct the multi word English Entity
+      var combineEntity = {
+        startTime: getStartTimeFromCloudSTTWordInfo(
+          speechWordArray[firstIndex]
+        ),
+        endTime: getEndTimeFromCloudSTTWordInfo(
+          speechWordArray[firstIndex + temp.length]
+        ),
+        word: entity.name,
+        confidence: 100,
+      };
+      Array.prototype.splice.apply(
+        output["terms"],
+        [firstIndex, temp.length].concat(combineEntity)
+      );
+    }
   });
+
+  // 6.3
+  languageResponse.entities.forEach((entity) => {
+    if (
+      entity.name.length > 1 &&
+      wordOnlyArray.includes(entity.name) == false
+    ) {
+      var temp = entity.name.split("");
+      var firstIndex = wordOnlyArray.indexOf(temp[0]);
+
+      debugLogger(
+        "Found " +
+          temp[0] +
+          " at index " +
+          firstIndex +
+          "should be inside " +
+          JSON.stringify(speechWordArray[firstIndex], null, 4) +
+          " starttime is " +
+          getStartTimeFromCloudSTTWordInfo(speechWordArray[firstIndex]) +
+          " endtime at index " +
+          (firstIndex + temp.length) +
+          "should be inside " +
+          JSON.stringify(
+            speechWordArray[firstIndex + temp.length - 1],
+            null,
+            4
+          ) +
+          " is " +
+          getEndTimeFromCloudSTTWordInfo(
+            speechWordArray[firstIndex + temp.length - 1]
+          )
+      );
+
+      // Construct the multi word Chinese Entity
+      var combinedEntity = {
+        startTime: getStartTimeFromCloudSTTWordInfo(
+          speechWordArray[firstIndex - 1]
+        ),
+        endTime: getEndTimeFromCloudSTTWordInfo(
+          speechWordArray[firstIndex + temp.length - 1]
+        ),
+        word: entity.name,
+        confidence: 100,
+      };
+      Array.prototype.splice.apply(
+        output["terms"],
+        [firstIndex, temp.length].concat(combinedEntity)
+      );
+    }
+  });
+
   debugLogger(`Merged output is ${JSON.stringify(output, null, 4)}`);
 }
 
 // This function only prints to console if debug mode is enabled
 function debugLogger(stringToPrint) {
   if (isDebugMode) {
-    console.log(stringToPrint)};
-};
+    console.log(stringToPrint);
+  }
+}
+
+// Checks if a entity is an English entity based on presence of a space or an exact match
+function isEnglishEntity(entity, wordOnlyArray) {
+  if (entity.name.includes(" ")) {
+    return true;
+  } else if (entity.length > 1 && wordOnlyArray.includes([entity])) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+function getStartTimeFromCloudSTTWordInfo(wordInfo) {
+  const temp =
+    `${wordInfo.startTime.seconds}` +
+    "." +
+    wordInfo.startTime.nanos / 100000000;
+  return temp;
+}
+
+function getEndTimeFromCloudSTTWordInfo(wordInfo) {
+  return (
+    `${wordInfo.endTime.seconds}` + "." + wordInfo.endTime.nanos / 100000000
+  );
+}
 
 main().catch(console.error);
