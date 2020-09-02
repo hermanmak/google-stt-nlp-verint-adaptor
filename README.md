@@ -1,4 +1,5 @@
 # Google Cloud AI Verint Adaptor
+This adaptor is not official and is provided for anyone to use. No SLA is provided.
 
 # Setup
 1) Provide a service key for this script to call Google Cloud APIs.
