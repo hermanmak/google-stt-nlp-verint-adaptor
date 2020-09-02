@@ -6,8 +6,10 @@ const { Console } = require("console");
 
 // Set to true for all logging output
 const isDebugMode = true;
+var args = process.argv.slice(2);
 
 async function main() {
+  
   const projectId = "nlp-stt";
   const keyFilename =
     "/Users/hermanmak/Documents/Dev/nlp-stt-16634c694dd7.json";
@@ -20,10 +22,10 @@ async function main() {
   });
 
   // 1) Trigger STT
-  const gcsUri = "gs://raw-voice-clip/20200817-173613.flac";
-  const encoding = "FLAC";
-  const sampleRateHertz = 48000;
-  const languageCode = "yue-Hant-HK";
+  const gcsUri = args[0]; //"gs://raw-voice-clip/20200817-173613.flac"
+  const encoding = args[1]; //"FLAC"
+  const sampleRateHertz = args[2]; //48000
+  const languageCode = args[3] //"yue-Hant-HK"
 
   const config = {
     enableWordTimeOffsets: true,
