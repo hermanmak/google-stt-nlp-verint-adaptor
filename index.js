@@ -3,29 +3,78 @@ const speech = require("@google-cloud/speech").v1p1beta1;
 const language = require("@google-cloud/language");
 const fs = require("fs");
 const { Console } = require("console");
+const yargs = require("yargs");
+
+const argv = yargs
+  .scriptName("verintnlpsst")
+  .usage("node index.js -p str -k str -g str -l str -s num -e str -d bool")
+  .example("node index.js -p nlp-stt -k /Users/hermanmak/Documents/Dev/nlp-stt-16634c694dd7.json -g gs://raw-voice-clip/20200817-173613.flac -l yue-Hant-HK -s 48000 -e FLAC -d true")
+  .option("p", {
+    alias: "projectId",
+    description:
+      "The Google Cloud ProjectID which to call the Cloud AI APIs for",
+    type: "string",
+    nargs: 1,
+  })
+  .option("k", {
+    alias: "keyFileName",
+    description: "The service account key to call Cloud AI APIs with",
+    type: "string",
+    nargs: 1,
+  })
+  .option("g", {
+    alias: "sttGcsUri",
+    description: "The gcsUri of the voice clip",
+    type: "string",
+    nargs: 1,
+  })
+  .option("e", {
+    alias: "sttEncoding",
+    description: "The encoding type for the voice clip",
+    type: "string",
+    nargs: 1,
+  })
+  .option("s", {
+    alias: "sttSampleHertzRate",
+    description: "The Sampling rate in Hertz of the voice clip",
+    type: "number",
+    nargs: 1,
+  })
+  .option("l", {
+    alias: "sttLanguageCode",
+    description: "The language code for the voice clip",
+    type: "string",
+    nargs: 1,
+  })
+  .option("d", {
+    alias: "debugMode",
+    description: "Toggle debugMode for console log outputs",
+    type: "boolean",
+    nargs: 1
+  })
+  .describe("help", "Show help")
+  .epilog("Copyright 2020")
+  .parse();
 
 // Set to true for all logging output
-const isDebugMode = true;
-var args = process.argv.slice(2);
+const isDebugMode = argv.debugMode;
 
 async function main() {
-  
-  const projectId = "nlp-stt";
-  const keyFilename =
-    "/Users/hermanmak/Documents/Dev/nlp-stt-16634c694dd7.json";
-  
-    // Creates client(s)
-  const speechClient = new speech.SpeechClient({ projectId, keyFilename });
+  const projectId = argv.projectId; // nlp-stt
+  const keyFileName = argv.keyFileName; // /Users/hermanmak/Documents/Dev/nlp-stt-16634c694dd7.json
+
+  // Creates client(s)
+  const speechClient = new speech.SpeechClient({ projectId, keyFilename: keyFileName });
   const languageClient = new language.LanguageServiceClient({
     projectId,
-    keyFilename,
+    keyFilename: keyFileName,
   });
 
   // 1) Trigger STT
-  const gcsUri = args[0]; //"gs://raw-voice-clip/20200817-173613.flac"
-  const encoding = args[1]; //"FLAC"
-  const sampleRateHertz = args[2]; //48000
-  const languageCode = args[3] //"yue-Hant-HK"
+  const gcsUri = argv.sttGcsUri; //"gs://raw-voice-clip/20200817-173613.flac"
+  const encoding = argv.sttEncoding; //"FLAC"
+  const sampleRateHertz = argv.sttSampleRateHertz; //48000
+  const languageCode = argv.sttLanguageCode; //"yue-Hant-HK"
 
   const config = {
     enableWordTimeOffsets: true,
