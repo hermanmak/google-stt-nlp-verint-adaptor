@@ -14,42 +14,49 @@ const argv = yargs
     description:
       "The Google Cloud ProjectID which to call the Cloud AI APIs for",
     type: "string",
+    demandOption: true,
     nargs: 1,
   })
   .option("k", {
     alias: "keyFileName",
     description: "The service account key to call Cloud AI APIs with",
     type: "string",
+    demandOption: true,
     nargs: 1,
   })
   .option("g", {
     alias: "sttGcsUri",
     description: "The gcsUri of the voice clip",
     type: "string",
+    demandOption: true,
     nargs: 1,
   })
   .option("e", {
     alias: "sttEncoding",
     description: "The encoding type for the voice clip",
     type: "string",
+    demandOption: true,
     nargs: 1,
   })
   .option("s", {
     alias: "sttSampleHertzRate",
     description: "The Sampling rate in Hertz of the voice clip",
     type: "number",
+    demandOption: true,
     nargs: 1,
   })
   .option("l", {
     alias: "sttLanguageCode",
     description: "The language code for the voice clip",
     type: "string",
+    demandOption: true,
     nargs: 1,
   })
   .option("d", {
     alias: "debugMode",
     description: "Toggle debugMode for console log outputs",
     type: "boolean",
+    default: false,
     nargs: 1
   })
   .describe("help", "Show help")

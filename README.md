@@ -9,6 +9,3 @@ This adaptor is not official and is provided for anyone to use. No SLA is provid
     > * Run node `index.html --help` for an example and more information of parameters!
     > * Supported `sttEncoding` can be found here https://cloud.google.com/speech-to-text/docs/encoding#audio-encodings
     > * Supported `sttLanguage` can be found here https://cloud.google.com/speech-to-text/docs/languages
-
-# Optional
-1. Enable debugging mode for Console output logging by setting `isDebugMode=true`.
