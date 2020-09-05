@@ -62,13 +62,12 @@ const argv = yargs
   .describe("help", "Show help")
   .epilog("Copyright 2020")
   .parse();
-
-// Set to true for all logging output
+  
 const isDebugMode = argv.debugMode;
 
 async function main() {
-  const projectId = argv.projectId; // nlp-stt
-  const keyFileName = argv.keyFileName; // /Users/hermanmak/Documents/Dev/nlp-stt-16634c694dd7.json
+  const projectId = argv.projectId;
+  const keyFileName = argv.keyFileName;
 
   // Creates client(s)
   const speechClient = new speech.SpeechClient({ projectId, keyFilename: keyFileName });
@@ -78,19 +77,20 @@ async function main() {
   });
 
   // 1) Trigger STT
-  const gcsUri = argv.sttGcsUri; //"gs://raw-voice-clip/20200817-173613.flac"
-  const encoding = argv.sttEncoding; //"FLAC"
-  const sampleRateHertz = argv.sttSampleRateHertz; //48000
-  const languageCode = argv.sttLanguageCode; //"yue-Hant-HK"
+  const gcsUri = argv.sttGcsUri;
+  const encoding = argv.sttEncoding;
+  const sampleRateHertz = argv.sttSampleRateHertz;
+  const languageCode = argv.sttLanguageCode;
 
   const config = {
     enableWordTimeOffsets: true,
     enableSpeakerDiarization: true,
+    enableAutomaticPunctuation: true,
     audioChannelCount: true,
     enableWordConfidence: true,
     encoding: encoding,
     sampleRateHertz: sampleRateHertz,
-    languageCode: languageCode,
+    languageCode: languageCode
   };
 
   const audio = {
