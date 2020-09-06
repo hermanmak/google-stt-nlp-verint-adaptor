@@ -2,13 +2,15 @@
 const speech = require("@google-cloud/speech").v1p1beta1;
 const language = require("@google-cloud/language");
 const fs = require("fs");
-const { Console } = require("console");
+const { Console, debug } = require("console");
 const yargs = require("yargs");
 
 const argv = yargs
   .scriptName("verintnlpsst")
   .usage("node index.js -p str -k str -g str -l str -s num -e str -d bool")
-  .example("node index.js -p nlp-stt -k /Users/hermanmak/Documents/Dev/nlp-stt-16634c694dd7.json -g gs://raw-voice-clip/20200817-173613.flac -l yue-Hant-HK -s 48000 -e FLAC -d true")
+  .example(
+    "node index.js -p nlp-stt -k /Users/hermanmak/Documents/Dev/nlp-stt-16634c694dd7.json -g gs://raw-voice-clip/20200817-173613.flac -l yue-Hant-HK -s 48000 -e FLAC -d true"
+  )
   .option("p", {
     alias: "projectId",
     description:
@@ -57,12 +59,11 @@ const argv = yargs
     description: "Toggle debugMode for console log outputs",
     type: "boolean",
     default: false,
-    nargs: 1
+    nargs: 1,
   })
   .describe("help", "Show help")
   .epilog("Copyright 2020")
   .parse();
-  
 const isDebugMode = argv.debugMode;
 
 async function main() {
@@ -70,7 +71,10 @@ async function main() {
   const keyFileName = argv.keyFileName;
 
   // Creates client(s)
-  const speechClient = new speech.SpeechClient({ projectId, keyFilename: keyFileName });
+  const speechClient = new speech.SpeechClient({
+    projectId,
+    keyFilename: keyFileName,
+  });
   const languageClient = new language.LanguageServiceClient({
     projectId,
     keyFilename: keyFileName,
@@ -86,11 +90,10 @@ async function main() {
     enableWordTimeOffsets: true,
     enableSpeakerDiarization: true,
     enableAutomaticPunctuation: true,
-    audioChannelCount: true,
     enableWordConfidence: true,
     encoding: encoding,
     sampleRateHertz: sampleRateHertz,
-    languageCode: languageCode
+    languageCode: languageCode,
   };
 
   const audio = {
@@ -123,40 +126,19 @@ async function main() {
   const [languageResponse] = await languageClient.analyzeEntities(
     languageRequest
   );
-
   debugLogger(
     `JSON response from Cloud NLP: ${JSON.stringify(languageResponse, null, 4)}`
   );
 
-  // 5) Construct unmerged Verint payload
-  const output = {};
-  var key = "terms"; // This output payload
-  output[key] = []; // An empty array JSON
-
-  const sttWordOnlyArray = [];
-
-  sttWordInfoArray.forEach((wordInfo) => {
-    var start = getStartTimeFromCloudSTTWordInfo(wordInfo);
-    var end = getEndTimeFromCloudSTTWordInfo(wordInfo);
-
-    var duration = (end - start).toFixed(1);
-    var speaker = wordInfo.speakerTag;
-    var best = {
-      word: wordInfo.word,
-      score: getVerintScoreFromConfidence(wordInfo.confidence),
-    };
-    var alternatives = [];
-
-    output[key].push({
-      start,
-      duration,
-      speaker,
-      best,
-      alternatives,
-    });
-    sttWordOnlyArray.push(wordInfo.word);
-  });
-  debugLogger(`Non merged output is ${JSON.stringify(output, null, 4)}`);
+  /**
+   * 5) Create needed working data formats
+   */
+  const output = getVerintOutputFromSTTWordInfoArray(sttWordInfoArray); // Unmerged output
+  const sttWordOnlyArray = extractWordOnlyArray(sttWordInfoArray); // Just STT words in an array
+  var normalizedTranscript = createNormalizedTranscript(
+    sttWordInfoArray,
+    sttTranscript
+  ); // A transcript with multicharacter words set to 1 character
 
   /**
    * 6) Merge step
@@ -164,93 +146,47 @@ async function main() {
    * 6.2) Handle multi Engine entities, they contain spaces in the Cloud NLP output.
    * 6.3) Handle chinese entities last.
    */
-  // 6.2
-  languageResponse.entities.forEach((entity) => {
-    if (entity.name.includes(" ")) {
-      var temp = entity.name.split(" ");
-      var firstIndex = sttWordOnlyArray.indexOf(temp[0]);
-
-      // Construct the multi word English Entity
-      var combineEntity = {
-        startTime: getStartTimeFromCloudSTTWordInfo(
-          sttWordInfoArray[firstIndex]
-        ),
-        endTime: getEndTimeFromCloudSTTWordInfo(
-          sttWordInfoArray[firstIndex + temp.length]
-        ),
-        word: entity.name,
-        confidence: 100,
-      };
-      Array.prototype.splice.apply(
-        output["terms"],
-        [firstIndex, temp.length].concat(combineEntity)
-      );
-    }
-  });
 
   // 6.3
   languageResponse.entities.forEach((entity) => {
     if (
       entity.name.length > 1 &&
-      sttWordOnlyArray.includes(entity.name) == false
+      sttWordOnlyArray.includes(entity.name) == false &&
+      normalizedTranscript.indexOf(entity.name) != -1 //compound chinese english entities slip through
     ) {
-      var chineseEntityWordArray = entity.name.split("");
-      var chineseEntityFirstWordIndex = sttWordOnlyArray.indexOf(
-        chineseEntityWordArray[0]
+      var chineseEntityFirstWordIndex = normalizedTranscript.indexOf(
+        entity.name
       );
+      debugLogger("first index " + chineseEntityFirstWordIndex);
       var averageConfidence = getAverageConfidenceForWordArray(
-        chineseEntityWordArray,
+        chineseEntityFirstWordIndex,
         sttWordInfoArray,
-        sttWordOnlyArray
+        sttWordOnlyArray,
+        entity.name.length
       );
-
-      debugLogger(
-        "Found " +
-          chineseEntityWordArray[0] +
-          " at index " +
-          chineseEntityFirstWordIndex +
-          "should be inside " +
-          JSON.stringify(
-            sttWordInfoArray[chineseEntityFirstWordIndex],
-            null,
-            4
-          ) +
-          " starttime is " +
-          getStartTimeFromCloudSTTWordInfo(
-            sttWordInfoArray[chineseEntityFirstWordIndex]
-          ) +
-          " endtime at index " +
-          (chineseEntityFirstWordIndex + chineseEntityWordArray.length) +
-          "should be inside " +
-          JSON.stringify(
-            sttWordInfoArray[
-              chineseEntityFirstWordIndex + chineseEntityWordArray.length - 1
-            ],
-            null,
-            4
-          ) +
-          " is " +
-          getEndTimeFromCloudSTTWordInfo(
-            sttWordInfoArray[
-              chineseEntityFirstWordIndex + chineseEntityWordArray.length - 1
-            ]
-          ) +
-          " average confidence of " +
-          averageConfidence
-      );
-
-      // Construct the multi word Chinese Entity
       var startTime = getStartTimeFromCloudSTTWordInfo(
-        sttWordInfoArray[chineseEntityFirstWordIndex - 1]
+        sttWordInfoArray[chineseEntityFirstWordIndex]
       );
+      var endIndex = chineseEntityFirstWordIndex + entity.name.length - 1;
       var endTime = getEndTimeFromCloudSTTWordInfo(
-        sttWordInfoArray[
-          chineseEntityFirstWordIndex + chineseEntityWordArray.length - 1
-        ]
+        sttWordInfoArray[chineseEntityFirstWordIndex + entity.name.length - 1]
       );
       var duration = (endTime - startTime).toFixed(1);
       var speaker = 0;
 
+      debugLogger(
+        `${
+          entity.name
+        } starting at index ${chineseEntityFirstWordIndex} inside ${JSON.stringify(
+          sttWordInfoArray[chineseEntityFirstWordIndex]
+        )} with start time ${startTime} end found at index ${endIndex} with end time ${endTime} inside ${JSON.stringify(
+          sttWordInfoArray[chineseEntityFirstWordIndex + entity.name.length - 1]
+        )}, so duration ${
+          endTime - startTime
+        } and average confidence ${averageConfidence}`
+      );
+
+      // Construct the multi word Chinese Entity
       var combinedEntity = {
         start: startTime,
         duration: duration,
@@ -263,9 +199,7 @@ async function main() {
       };
       Array.prototype.splice.apply(
         output["terms"],
-        [chineseEntityFirstWordIndex, chineseEntityWordArray.length].concat(
-          combinedEntity
-        )
+        [chineseEntityFirstWordIndex, entity.name.length].concat(combinedEntity)
       );
     }
   });
@@ -312,21 +246,84 @@ function getEndTimeFromCloudSTTWordInfo(wordInfo) {
  * @param {*} sttWordOnlyArray
  */
 function getAverageConfidenceForWordArray(
-  wordArray,
+  firstIndex,
   sttWordInfoArray,
-  sttWordOnlyArray
+  sttWordOnlyArray,
+  length
 ) {
   var averageConfidence = 0;
-  wordArray.forEach((word) => {
-    debugLogger(
-      "The word " + word + " indexed at " + sttWordOnlyArray.indexOf(word)
-    );
-
+  var index = 0;
+  while (index < length) {
     averageConfidence +=
-      sttWordInfoArray[sttWordOnlyArray.indexOf(word)].confidence /
-      wordArray.length;
-  });
+      sttWordInfoArray[firstIndex + index].confidence / length;
+
+    index++;
+  }
   return averageConfidence;
+}
+
+/**
+ * Convert Cloud Speech To Text Response to Verint Output format
+ * @param {*} sttWordInfoArray 
+ */
+function getVerintOutputFromSTTWordInfoArray(sttWordInfoArray) {
+  const output = {};
+  var key = "terms"; // This output payload
+  output[key] = []; // An empty array JSON
+
+  sttWordInfoArray.forEach((wordInfo) => {
+    var start = getStartTimeFromCloudSTTWordInfo(wordInfo);
+    var end = getEndTimeFromCloudSTTWordInfo(wordInfo);
+
+    var duration = (end - start).toFixed(1);
+    var speaker = wordInfo.speakerTag;
+    var best = {
+      word: wordInfo.word,
+      score: getVerintScoreFromConfidence(wordInfo.confidence),
+    };
+    var alternatives = [];
+
+    output[key].push({
+      start,
+      duration,
+      speaker,
+      best,
+      alternatives,
+    });
+  });
+
+  return output;
+}
+
+/**
+ * Normalizing Transcript by remove English words from transcript. It causes issue with finding index placements.
+ * @param {*} wordInfoArray
+ * @param {*} transcript
+ */
+function createNormalizedTranscript(wordInfoArray, transcript) {
+  var temp = transcript; //Create a copy to edit
+  wordInfoArray.forEach((wordInfo) => {
+    if (wordInfo.word.length > 1) {
+      //This word is likely English. To get an accurate index of where to combine chinese words we need to shrink multi character english words to 1 character. Lets use ~.
+      temp = temp.replace(wordInfo.word, "~");
+    }
+  });
+
+  debugLogger(`Normalized Transcript is ${temp}`);
+  return temp; //Return the editted copy.
+}
+
+/**
+ * Extract all words from Cloud Speech To Text Response into an ordered array.
+ * @param {*} sttWordInfoArray
+ */
+function extractWordOnlyArray(sttWordInfoArray) {
+  const wordOnlyArray = [];
+  sttWordInfoArray.forEach((wordInfo) => {
+    wordOnlyArray.push(wordInfo.word);
+  });
+
+  return wordOnlyArray;
 }
 
 /**
