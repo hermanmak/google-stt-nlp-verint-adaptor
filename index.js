@@ -93,7 +93,7 @@ async function main() {
     enableWordConfidence: true,
     encoding: encoding,
     sampleRateHertz: sampleRateHertz,
-    languageCode: languageCode,
+    languageCode: languageCode
   };
 
   const audio = {
@@ -171,7 +171,7 @@ async function main() {
       var endTime = getEndTimeFromCloudSTTWordInfo(
         sttWordInfoArray[chineseEntityFirstWordIndex + entity.name.length - 1]
       );
-      var duration = (endTime - startTime).toFixed(1);
+      var duration = calculateDuration(startTime, endTime);
       var speaker = 0;
 
       debugLogger(
@@ -181,12 +181,10 @@ async function main() {
           sttWordInfoArray[chineseEntityFirstWordIndex]
         )} with start time ${startTime} end found at index ${endIndex} with end time ${endTime} inside ${JSON.stringify(
           sttWordInfoArray[chineseEntityFirstWordIndex + entity.name.length - 1]
-        )}, so duration ${
-          endTime - startTime
-        } and average confidence ${averageConfidence}`
+        )}, so duration ${duration} and average confidence ${averageConfidence}`
       );
 
-      // Construct the multi word Chinese Entity
+      // Replace individual words and insert the entity into the Verint output
       var combinedEntity = {
         start: startTime,
         duration: duration,
@@ -264,7 +262,7 @@ function getAverageConfidenceForWordArray(
 
 /**
  * Convert Cloud Speech To Text Response to Verint Output format
- * @param {*} sttWordInfoArray 
+ * @param {*} sttWordInfoArray
  */
 function getVerintOutputFromSTTWordInfoArray(sttWordInfoArray) {
   const output = {};
@@ -274,8 +272,7 @@ function getVerintOutputFromSTTWordInfoArray(sttWordInfoArray) {
   sttWordInfoArray.forEach((wordInfo) => {
     var start = getStartTimeFromCloudSTTWordInfo(wordInfo);
     var end = getEndTimeFromCloudSTTWordInfo(wordInfo);
-
-    var duration = (end - start).toFixed(1);
+    var duration = calculateDuration(start, end);
     var speaker = wordInfo.speakerTag;
     var best = {
       word: wordInfo.word,
@@ -332,6 +329,15 @@ function extractWordOnlyArray(sttWordInfoArray) {
  */
 function getVerintScoreFromConfidence(confidence) {
   return confidence * 1000;
+}
+
+/**
+ * Returns duration with single decimal point.
+ * @param {*} start
+ * @param {*} end
+ */
+function calculateDuration(start, end) {
+  return (end - start).toFixed(1);
 }
 
 main().catch(console.error);
